@@ -7,15 +7,16 @@ import json
 import sys
 import urllib2
 
-if len(sys.argv) != 2:
-    sys.exit("error: wrong number of args")
 
-version = sys.argv[1]
-major = version.split(".")[0]
-minor = version.split(".")[1]
+def find_index(nodes, version):
+    for index, node in enumerate(nodes):
+        if node['version'] == version:
+            return index
+
+    return -1
 
 
-def search(channel):
+def search(version, channel):
     print "\nSearching in channel: " + channel
 
     # Get graph in json
@@ -27,18 +28,13 @@ def search(channel):
     raw = response.read()
     data = json.loads(raw)
 
-    version_found = False
-
     # Find wanted version to get its index in the node list
-    for index, node in enumerate(data['nodes']):
-        if node['version'] == version:
-            version_found = True
-            break
+    index = find_index(data["nodes"], version)
 
-    if not version_found:
+    if index < 0:
         sys.exit("error: could not find version: " + version)
 
-    print "found version:", node["version"], "at index:", index
+    print "found version:", data["nodes"][index]["version"], "at index:", index
 
     edge_found = False
 
@@ -57,10 +53,31 @@ def search(channel):
     return edge_found
 
 
-found = search("stable-" + major + "." + minor)
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("error: wrong number of args")
 
-if not found:
-    # bump minor version and try another channel
-    minor = str(int(minor) + 1)
-    channel = "stable-" + major + "." + minor
-    search(channel)
+    version = sys.argv[1]
+
+    verlist = version.split(".")
+    if len(verlist) != 3:
+        sys.exit("error: version argument does not look like a semantic version")
+
+    try:
+        major = int(verlist[0])
+        minor = int(verlist[1])
+        patch = int(verlist[2])
+    except Exception as e:
+        sys.exit("error: version argument does not look like a semantic version")
+
+    found = search(version, "stable-" + str(major) + "." + str(minor))
+
+    if not found:
+        # bump minor version and try a later channel
+        minor = str(minor + 1)
+        channel = "stable-" + str(major) + "." + str(minor)
+        search(version, channel)
+
+
+if __name__ == '__main__':
+    main()
